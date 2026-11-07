@@ -5,7 +5,7 @@ class SimuladorRelevo:
     def __init__(self, root):
         self.root = root
         self.root.title("Oficina 3: Do 3D para o 2D (Maquete e Mapa)")
-        self.root.geometry("1100x700") # Janela mais larga para caber o input
+        self.root.geometry("1150x750") # Aumentei um pouco para caber os botões
         self.root.configure(bg="#f0f0f0")
         self.root.resizable(False, False)
 
@@ -16,7 +16,7 @@ class SimuladorRelevo:
         self.max_altitude = 4
 
         self.setup_ui()
-        self.desenhar_tudo()
+        self.carregar_preset("perlin") # Começa com um exemplo para a tela não ficar vazia
 
     def setup_ui(self):
         # Título
@@ -45,21 +45,28 @@ class SimuladorRelevo:
         self.canvas_2d.bind("<Button-1>", self.clicar_2d) 
         self.canvas_2d.bind("<Button-3>", self.clicar_2d_direito)
 
-        # --- Painel de Importação de Matriz ---
-        frame_matriz = tk.LabelFrame(frame_visualizacao, text="Inserir Dados (Matriz 5x5)", font=("Arial", 12, "bold"), bg="#f0f0f0")
+        # --- Painel de Controle ---
+        frame_matriz = tk.LabelFrame(frame_visualizacao, text="Controles", font=("Arial", 12, "bold"), bg="#f0f0f0")
         frame_matriz.pack(side=tk.LEFT, padx=10, fill=tk.Y)
 
-        instrucao_matriz = tk.Label(frame_matriz, text="Cole os valores de 0 a 4\nseparados por espaço ou vírgula:", bg="#f0f0f0")
-        instrucao_matriz.pack(pady=5)
-
-        self.text_matriz = tk.Text(frame_matriz, height=8, width=25, font=("Courier", 11))
-        self.text_matriz.pack(pady=5, padx=10)
+        # 1. Botões de Modelos Prontos (Presets)
+        tk.Label(frame_matriz, text="1. Escolha um Terreno Pronto:", font=("Arial", 10, "bold"), bg="#f0f0f0").pack(pady=5)
         
-        # Texto de exemplo inicial
-        self.text_matriz.insert("1.0", "0 0 1 0 0\n0 2 3 2 0\n1 3 4 3 1\n0 2 3 2 0\n0 0 1 0 0")
+        frame_botoes = tk.Frame(frame_matriz, bg="#f0f0f0")
+        frame_botoes.pack()
+        
+        tk.Button(frame_botoes, text="Montanha", width=18, command=lambda: self.carregar_preset("ridged")).pack(pady=2)
+        tk.Button(frame_botoes, text="Cânion", width=18, command=lambda: self.carregar_preset("canyons")).pack(pady=2)
+        tk.Button(frame_botoes, text="Colinas", width=18, command=lambda: self.carregar_preset("hills")).pack(pady=2)
+        tk.Button(frame_botoes, text="Plano (Zerar)", width=18, command=lambda: self.carregar_preset("zero")).pack(pady=2)
 
-        btn_importar = tk.Button(frame_matriz, text="Gerar Mapa", font=("Arial", 11, "bold"), command=self.importar_matriz, bg="#32CD32", fg="white")
-        btn_importar.pack(pady=10)
+        # 2. Caixa de Texto para Inserção Manual
+        tk.Label(frame_matriz, text="2. Ou digite sua Matriz 5x5:", font=("Arial", 10, "bold"), bg="#f0f0f0").pack(pady=(15, 5))
+        self.text_matriz = tk.Text(frame_matriz, height=6, width=22, font=("Courier", 11))
+        self.text_matriz.pack(pady=5)
+        
+        btn_importar = tk.Button(frame_matriz, text="Gerar Mapa da Matriz", font=("Arial", 10, "bold"), command=self.importar_matriz, bg="#32CD32", fg="white")
+        btn_importar.pack(pady=5)
 
         # Legenda
         frame_inferior = tk.Frame(self.root, bg="#e0e0e0", pady=10)
@@ -73,22 +80,33 @@ class SimuladorRelevo:
             lbl = tk.Label(legenda_frame, text=texto, bg=cor, width=10, relief="solid", bd=1, font=("Arial", 9))
             lbl.pack(side=tk.LEFT, padx=2)
 
+    def carregar_preset(self, tipo):
+        presets = {
+            "ridged": [[0, 1, 0, 0, 0], [1, 3, 2, 0, 0], [2, 4, 3, 1, 0], [1, 3, 2, 1, 0], [0, 1, 0, 0, 0]],
+            "canyons": [[3, 3, 4, 3, 3], [3, 2, 1, 2, 3], [4, 1, 0, 1, 4], [3, 2, 1, 2, 3], [3, 3, 4, 3, 3]],
+            "hills": [[1, 1, 2, 1, 1], [1, 2, 2, 2, 1], [2, 2, 3, 2, 2], [1, 2, 2, 2, 1], [1, 1, 2, 1, 1]],
+            "zero": [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
+            "perlin": [[1, 2, 1, 0, 0], [0, 2, 3, 2, 1], [1, 3, 4, 3, 1], [0, 1, 3, 2, 0], [0, 0, 1, 1, 0]]
+        }
+        self.altitudes = presets[tipo]
+        self.atualizar_texto_matriz()
+        self.desenhar_tudo()
+
+    def atualizar_texto_matriz(self):
+        self.text_matriz.delete("1.0", tk.END)
+        for linha in self.altitudes:
+            self.text_matriz.insert(tk.END, " ".join(map(str, linha)) + "\n")
+
     def importar_matriz(self):
-        # Pega o texto da caixa
         texto = self.text_matriz.get("1.0", tk.END).strip()
-        
-        # Limpa parênteses, colchetes e vírgulas
         texto_limpo = texto.replace('[', ' ').replace(']', ' ').replace(',', ' ')
         
         try:
-            # Converte tudo para uma lista de números inteiros
             numeros = [int(n) for n in texto_limpo.split()]
-            
             if len(numeros) != 25:
-                messagebox.showerror("Erro", f"Você inseriu {len(numeros)} números. A matriz precisa ter exatamente 25 números (5x5).")
+                messagebox.showerror("Erro", f"Você inseriu {len(numeros)} números. A matriz precisa ter 25 números (5x5).")
                 return
             
-            # Preenche a matriz
             index = 0
             for lin in range(self.tamanho_grade):
                 for col in range(self.tamanho_grade):
@@ -100,11 +118,9 @@ class SimuladorRelevo:
                     index += 1
                     
             self.desenhar_tudo()
-            
         except ValueError:
             messagebox.showerror("Erro de Formato", "Certifique-se de digitar apenas números inteiros.")
 
-    # (As funções de clique e desenho permanecem as mesmas da versão anterior)
     def get_cor_altitude(self, altitude):
         cores = {0: "#98FB98", 1: "#FFFACD", 2: "#F4A460", 3: "#A0522D", 4: "#FFFFFF"}
         return cores.get(altitude, "#FFFFFF")
@@ -116,6 +132,7 @@ class SimuladorRelevo:
             if self.altitudes[lin][col] < self.max_altitude:
                 self.altitudes[lin][col] += 1
                 self.desenhar_tudo()
+                self.atualizar_texto_matriz()
 
     def clicar_3d_direito(self, event):
         col = (event.x - 50) // self.tamanho_celula
@@ -124,6 +141,7 @@ class SimuladorRelevo:
             if self.altitudes[lin][col] > 0:
                 self.altitudes[lin][col] -= 1
                 self.desenhar_tudo()
+                self.atualizar_texto_matriz()
 
     def clicar_2d(self, event):
         col = event.x // self.tamanho_celula
@@ -132,6 +150,7 @@ class SimuladorRelevo:
             if self.altitudes[lin][col] < self.max_altitude:
                 self.altitudes[lin][col] += 1
                 self.desenhar_tudo()
+                self.atualizar_texto_matriz()
 
     def clicar_2d_direito(self, event):
         col = event.x // self.tamanho_celula
@@ -140,6 +159,7 @@ class SimuladorRelevo:
             if self.altitudes[lin][col] > 0:
                 self.altitudes[lin][col] -= 1
                 self.desenhar_tudo()
+                self.atualizar_texto_matriz()
 
     def desenhar_tudo(self):
         self.desenhar_3d()
